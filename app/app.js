@@ -1,31 +1,75 @@
+// const DB_FILE_PATH = __dirname + '/db.sqlite'
+const CONTROLLER_MODULE_URI = 'file://' + __dirname + '/controller/controller.html'
+
 const electron = require('electron');
+const {app, BrowserWindow, ipcMain} = electron;
 
-const app = electron.app;
+const sqlite3 = require('sqlite3').verbose();
 
-var BrowserWindow = electron.BrowserWindow;
+let controllerWindow;
+const viewerWindows = [];
+// let db;
+let currentContext;
+const contexts = [];
 
-let mainWindow;
+app.on('ready', () => {
 
-app.on('window-all-closed', function() {
+    // Initialize DB
+    // db = new sqlite3.Database(DB_FILE_PATH);
+
+    // Initialize Context stack
+    currentContext = new Context();
+    contexts.push(currentContext);
+
+    // Create controller window
+    controllerWindow = new BrowserWindow();
+    controllerWindow.loadURL(CONTROLLER_MODULE_URI);
+    controllerWindow.openDevTools(); // For debugging
+    controllerWindow.on('closed', () => {
+        controllerWindow = null;
+    });
+
+    // Initialize display
+    // let displays = electron.screen.getAllDisplays();
+    // let externalDisplays = displays.filter((display) => {
+    //     return display.bounds.x !== 0 || display.bounds.y !== 0
+    // });
+    //
+    // for ( display in externalDisplays ) {
+    //
+    // }
+});
+
+app.on('window-all-closed', () => {
+    // db.close();
     app.quit();
 });
 
-// This method will be called when Electron has done everything
-// initialization and ready for creating browser windows.
-app.on('ready', function() {
-  // Create the browser window.
-  mainWindow = new BrowserWindow({width: 800, height: 600});
+// Context Management
+class Context {
+    constructor(data) {
 
-  // and load the index.html of the app.
-  mainWindow.loadURL('file://' + __dirname + '/index.html');
+    }
+}
 
-  // Emitted when the window is closed.
-  mainWindow.on('closed', function() {
-    // Dereference the window object, usually you would store windows
-    // in an array if your app supports multi windows, this is the time
-    // when you should delete the corresponding element.
-    mainWindow = null;
-  });
+function updateContext(context) {
+    currentContext = context;
+    controllerWindow.webContents.executeJavaScript('onUpdateContext()')
+        .then((result) => {
+            console.log(result);
+        });
+}
+
+ipcMain.on('update-context', (event, data) => {
+    updateContext(new Context(data));
 });
 
+ipcMain.on('push-context', (event, data) => {
+    contexts.push(currentContext);
+    currentContext = new Context(data);
+    updateContext(context);
+});
 
+ipcMain.on('pop-context', (event, dummy) => {
+    updateContext(contexts.pop());
+});
